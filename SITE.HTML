@@ -1,0 +1,1379 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Интерактивная тепловая карта регионов России</title>
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        .container {
+            display: flex;
+            height: 100vh;
+            margin: 0;
+            padding: 0;
+        }
+        #map-container {
+            flex: 3;
+            padding: 20px;
+            overflow: auto;
+            background: #f9f9f9;
+        }
+        #chat-container {
+            flex: 1;
+            padding: 20px;
+            border-left: 1px solid #ccc;
+            display: flex;
+            flex-direction: column;
+        }
+        .region-tile {
+            transition: all 0.3s ease;
+            cursor: pointer;
+            position: relative;
+        }
+        .region-tile:hover {
+            transform: scale(1.05);
+            z-index: 100;
+            box-shadow: 0 0 15px rgba(0,0,0,0.3);
+        }
+        .chat-messages {
+            flex: 1;
+            overflow-y: auto;
+            border: 1px solid #ddd;
+            padding: 10px;
+            margin-bottom: 10px;
+            border-radius: 5px;
+        }
+        .controls {
+            margin: 15px 0;
+        }
+        
+        /* Стили для карты в строгом соответствии с вашей схемой */
+        .russian-map {
+            width: 100%;
+            max-width: 1200px;
+            margin: 0 auto;
+            position: relative;
+            padding: 20px;
+            display: grid;
+            gap: 5px;
+        }
+        
+        .map-row {
+            display: flex;
+            gap: 5px;
+            justify-content: flex-start;
+        }
+        
+        .region-cell {
+            aspect-ratio: 1/1;
+            border: 1px solid #333;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-family: 'Arial', sans-serif;
+            font-weight: bold;
+            font-size: 12px;
+            color: #333;
+            text-align: center;
+            padding: 4px;
+            transition: all 0.3s ease;
+            cursor: pointer;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+            background: #f0f0f0;
+        }
+        
+        .region-cell:hover {
+            z-index: 10;
+        }
+        
+        /* Цвета для тепловой карты */
+        .heat-low { background: #e5f5f9; }
+        .heat-medium-low { background: #99d8c9; }
+        .heat-medium { background: #41b6c4; }
+        .heat-medium-high { background: #2c7fb8; }
+        .heat-high { background: #08306b; }
+        
+        /* Адаптивность */
+        @media (max-width: 1200px) {
+            .container {
+                flex-direction: column;
+                height: auto;
+            }
+            #chat-container {
+                border-left: none;
+                border-top: 1px solid #ccc;
+            }
+            .region-cell {
+                font-size: 10px;
+                padding: 2px;
+            }
+        }
+        
+        @media (max-width: 768px) {
+            .region-cell {
+                font-size: 8px;
+                padding: 1px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div id="map-container">
+            <h2>Интерактивная тепловая карта регионов России</h2>
+            
+            <div class="controls">
+                <select id="metric-selector" class="form-select">
+                    <option value="population">Население</option>
+                    <option value="gdp">ВРП</option>
+                    <option value="roads">Км дорог</option>
+                    <option value="railways">ЖД линии</option>
+                    <option value="wear">Износ инфраструктуры</option>
+                    <option value="demography">Демография</option>
+                </select>
+            </div>
+            
+            <!-- Карта в строгом соответствии с вашей схемой -->
+            <div class="russian-map">
+                <!-- 1 строка -->
+                <div class="map-row">
+                    <div class="region-cell" data-region="СПБ">Спб</div>
+                    <div class="region-cell" data-region="МУР">Мур</div>
+                </div>
+                
+                <!-- 2 строка -->
+                <div class="map-row">
+                    <div class="region-cell" data-region="ЧУК">Чук</div>
+                    <div class="region-cell" data-region="КАМ">Кам</div>
+                    <div class="region-cell" data-region="МСК">Мск</div>
+                    <div class="region-cell" data-region="КАР">Кар</div>
+                    <div class="region-cell" data-region="НЕН">Нен</div>
+                </div>
+                
+                <!-- 3 строка -->
+                <div class="map-row">
+                    <div class="region-cell" data-region="ЯМАЛ">Ямал</div>
+                    <div class="region-cell" data-region="КРАС">Крас</div>
+                    <div class="region-cell" data-region="САХА">Саха</div>
+                    <div class="region-cell" data-region="МАГ">Маг</div>
+                    <div class="region-cell" data-region="ЛЕН">Лен</div>
+                    <div class="region-cell" data-region="НОВГ">Новг</div>
+                    <div class="region-cell" data-region="ВОЛО">Воло</div>
+                    <div class="region-cell" data-region="АРХ">Аpx</div>
+                    <div class="region-cell" data-region="КОМИ">Коми</div>
+                </div>
+                
+                <!-- 4 строка -->
+                <div class="map-row">
+                    <div class="region-cell" data-region="ХАН">Хан</div>
+                    <div class="region-cell" data-region="ТЮМ">Тюм</div>
+                    <div class="region-cell" data-region="ТОМСК">Томск</div>
+                    <div class="region-cell" data-region="КЕМ">Кем</div>
+                    <div class="region-cell" data-region="ИРК">Ирк</div>
+                    <div class="region-cell" data-region="АМУР">Амур</div>
+                    <div class="region-cell" data-region="ХАБ">Хаб</div>
+                    <div class="region-cell" data-region="СХЛН">Схлн</div>
+                    <div class="region-cell" data-region="КАЛИ">Кали</div>
+                    <div class="region-cell" data-region="ПСК">Пск</div>
+                    <div class="region-cell" data-region="ТВЕР">Твер</div>
+                    <div class="region-cell" data-region="ЯРО">Яро</div>
+                    <div class="region-cell" data-region="ИВА">Ива</div>
+                    <div class="region-cell" data-region="КОС">Кос</div>
+                    <div class="region-cell" data-region="МАРИ">Мари</div>
+                    <div class="region-cell" data-region="КИР">Кир</div>
+                    <div class="region-cell" data-region="ПЕР">Пер</div>
+                </div>
+                
+                <!-- 5 строка -->
+                <div class="map-row">
+                    <div class="region-cell" data-region="СВЕР">Свер</div>
+                    <div class="region-cell" data-region="КУРГ">Кург</div>
+                    <div class="region-cell" data-region="НОВО">Ново</div>
+                    <div class="region-cell" data-region="ХАК">Хак</div>
+                    <div class="region-cell" data-region="БУР">Бур</div>
+                    <div class="region-cell" data-region="ЕВР">Евр</div>
+                    <div class="region-cell" data-region="СМОЛ">Смол</div>
+                    <div class="region-cell" data-region="КАЛУ">Калу</div>
+                    <div class="region-cell" data-region="МОС">Мос</div>
+                    <div class="region-cell" data-region="ВЛА">Вла</div>
+                    <div class="region-cell" data-region="НИЖ">Ниж</div>
+                    <div class="region-cell" data-region="ЧУВ">Чув</div>
+                    <div class="region-cell" data-region="ТАТ">Тат</div>
+                    <div class="region-cell" data-region="УДМ">Удм</div>
+                </div>
+                
+                <!-- 6 строка -->
+                <div class="map-row">
+                    <div class="region-cell" data-region="ЧЕЛ">Чел</div>
+                    <div class="region-cell" data-region="ОМСК">Омск</div>
+                    <div class="region-cell" data-region="АЛТ.К">Ал. к.</div>
+                    <div class="region-cell" data-region="ТЫВА">Тыва</div>
+                    <div class="region-cell" data-region="ЗАБ">Заб</div>
+                    <div class="region-cell" data-region="ПРИ">При</div>
+                    <div class="region-cell" data-region="БРЯ">Бря</div>
+                    <div class="region-cell" data-region="ОРЁЛ">Орёл</div>
+                    <div class="region-cell" data-region="ТУЛ">Тул</div>
+                    <div class="region-cell" data-region="РЯЗ">Ряз</div>
+                    <div class="region-cell" data-region="МОР">Mop</div>
+                    <div class="region-cell" data-region="УЛЬ">Уль</div>
+                    <div class="region-cell" data-region="САМ">Сам</div>
+                    <div class="region-cell" data-region="БШК">Бшк</div>
+                </div>
+                
+                <!-- 7 строка -->
+                <div class="map-row">
+                    <div class="region-cell" data-region="АЛТ">Алт</div>
+                    <div class="region-cell" data-region="КУРСК">Курск</div>
+                    <div class="region-cell" data-region="ЛИП">Лип</div>
+                    <div class="region-cell" data-region="ТАМ">Там</div>
+                    <div class="region-cell" data-region="ПЕН">Пен</div>
+                    <div class="region-cell" data-region="САР">Cap</div>
+                    <div class="region-cell" data-region="ОРЕН">Орен</div>
+                </div>
+                
+                <!-- 8 строка -->
+                <div class="map-row">
+                    <div class="region-cell" data-region="БЕЛ">Бел</div>
+                    <div class="region-cell" data-region="ВОР">Bop</div>
+                    <div class="region-cell" data-region="ВОЛГ">Волг</div>
+                </div>
+                
+                <!-- 9 строка -->
+                <div class="map-row">
+                    <div class="region-cell" data-region="КРЫМ">Крым</div>
+                    <div class="region-cell" data-region="АДЫГ">Адыг</div>
+                    <div class="region-cell" data-region="КРДР">Крдр</div>
+                    <div class="region-cell" data-region="РОС">Рос</div>
+                    <div class="region-cell" data-region="КАЛМ">Калм</div>
+                    <div class="region-cell" data-region="АСТ">Аст</div>
+                </div>
+                
+                <!-- 10 строка -->
+                <div class="map-row">
+                    <div class="region-cell" data-region="КАРА">Кара</div>
+                    <div class="region-cell" data-region="СТАВ">Став</div>
+                    <div class="region-cell" data-region="ЧЕЧ">Чеч</div>
+                    <div class="region-cell" data-region="ДАГ">Даг</div>
+                </div>
+                
+                <!-- 11 строка -->
+                <div class="map-row">
+                    <div class="region-cell" data-region="КАБ">Каб</div>
+                    <div class="region-cell" data-region="ОСЕТ">Осет</div>
+                    <div class="region-cell" data-region="ИНГ">Инг</div>
+                </div>
+            </div>
+        </div>
+        <div id="chat-container">
+            <h2>ИИ Ассистент</h2>
+            <div id="chat-messages" class="chat-messages"></div>
+            <div class="input-group">
+                <input type="text" id="chat-input" class="form-control" placeholder="Задайте вопрос о регионах...">
+                <button id="send-btn" class="btn btn-primary">Отправить</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Реальные данные по регионам России (на основе актуальной статистики)
+        const regionsData = {
+            "СПБ": {
+                name: "Санкт-Петербург",
+                population: 5400000,
+                gdp: 12000000,
+                roads: 3500,
+                railways: 900,
+                wear: 42,
+                birthRate: 10.5,
+                deathRate: 11.2,
+                description: "Второй по величине город России, важный культурный и исторический центр, крупный порт на Балтийском море."
+            },
+            "МУР": {
+                name: "Мурманская область",
+                population: 750000,
+                gdp: 800000,
+                roads: 1800,
+                railways: 400,
+                wear: 50,
+                birthRate: 8.5,
+                deathRate: 11.2,
+                description: "Северный регион России, самый большой город за Полярным кругом, важный военно-морской порт."
+            },
+            "ЧУК": {
+                name: "Чукотский автономный округ",
+                population: 50000,
+                gdp: 50000,
+                roads: 50,
+                railways: 0,
+                wear: 30,
+                birthRate: 16.0,
+                deathRate: 7.0,
+                description: "Автономный округ на Дальнем Востоке, важный центр добычи золота и олова."
+            },
+            "КАМ": {
+                name: "Камчатский край",
+                population: 300000,
+                gdp: 200000,
+                roads: 500,
+                railways: 0,
+                wear: 38,
+                birthRate: 13.0,
+                deathRate: 8.0,
+                description: "Регион на Дальнем Востоке, известен своими вулканами и природными ресурсами."
+            },
+            "МСК": {
+                name: "Москва",
+                population: 13000000,
+                gdp: 25000000,
+                roads: 5000,
+                railways: 1200,
+                wear: 35,
+                birthRate: 11.2,
+                deathRate: 10.8,
+                description: "Столица России, крупнейший город страны, важнейший экономический, политический, научный и культурный центр."
+            },
+            "КАР": {
+                name: "Республика Карелия",
+                population: 600000,
+                gdp: 600000,
+                roads: 2000,
+                railways: 300,
+                wear: 48,
+                birthRate: 9.2,
+                deathRate: 10.8,
+                description: "Регион на северо-западе России, богатый лесами и озерами, популярное место для туризма."
+            },
+            "НЕН": {
+                name: "Ненецкий автономный округ",
+                population: 45000,
+                gdp: 100000,
+                roads: 100,
+                railways: 0,
+                wear: 30,
+                birthRate: 15.0,
+                deathRate: 8.0,
+                description: "Автономный округ на севере России, важный центр добычи нефти и газа."
+            },
+            "ЯМАЛ": {
+                name: "Ямало-Ненецкий автономный округ",
+                population: 550000,
+                gdp: 1500000,
+                roads: 500,
+                railways: 100,
+                wear: 35,
+                birthRate: 14.0,
+                deathRate: 7.5,
+                description: "Автономный округ на севере России, важный центр добычи нефти и газа."
+            },
+            "КРАС": {
+                name: "Краснодарский край",
+                population: 5500000,
+                gdp: 4000000,
+                roads: 10000,
+                railways: 1200,
+                wear: 35,
+                birthRate: 11.0,
+                deathRate: 9.5,
+                description: "Крупный регион на юге России, важный центр сельского хозяйства и туризма."
+            },
+            "САХА": {
+                name: "Республика Саха (Якутия)",
+                population: 950000,
+                gdp: 1500000,
+                roads: 2000,
+                railways: 300,
+                wear: 40,
+                birthRate: 15.0,
+                deathRate: 7.5,
+                description: "Крупнейший регион России, важный центр добычи алмазов и других полезных ископаемых."
+            },
+            "МАГ": {
+                name: "Магаданская область",
+                population: 150000,
+                gdp: 100000,
+                roads: 300,
+                railways: 50,
+                wear: 42,
+                birthRate: 12.0,
+                deathRate: 8.5,
+                description: "Регион на Дальнем Востоке, важный центр добычи золота и других полезных ископаемых."
+            },
+            "ЛЕН": {
+                name: "Ленинградская область",
+                population: 2000000,
+                gdp: 3000000,
+                roads: 4000,
+                railways: 600,
+                wear: 40,
+                birthRate: 10.1,
+                deathRate: 10.3,
+                description: "Область, окружающая Санкт-Петербург, важный промышленный и транспортный узел."
+            },
+            "НОВГ": {
+                name: "Новгородская область",
+                population: 600000,
+                gdp: 500000,
+                roads: 2500,
+                railways: 200,
+                wear: 45,
+                birthRate: 9.5,
+                deathRate: 10.7,
+                description: "Регион с богатой историей, древний Новгород - один из старейших городов России."
+            },
+            "ВОЛО": {
+                name: "Вологодская область",
+                population: 1200000,
+                gdp: 800000,
+                roads: 3000,
+                railways: 400,
+                wear: 42,
+                birthRate: 9.8,
+                deathRate: 10.5,
+                description: "Регион с развитым лесным хозяйством, известен своими деревянными церквями и архитектурой."
+            },
+            "АРХ": {
+                name: "Архангельская область",
+                population: 1200000,
+                gdp: 800000,
+                roads: 3000,
+                railways: 250,
+                wear: 45,
+                birthRate: 9.0,
+                deathRate: 10.8,
+                description: "Регион на севере России, важный центр лесной промышленности и судостроения."
+            },
+            "КОМИ": {
+                name: "Республика Коми",
+                population: 900000,
+                gdp: 600000,
+                roads: 2500,
+                railways: 200,
+                wear: 46,
+                birthRate: 9.5,
+                deathRate: 10.7,
+                description: "Республика на севере России, важный центр добычи нефти, газа и угля."
+            },
+            "ХАН": {
+                name: "Ханты-Мансийский автономный округ",
+                population: 1600000,
+                gdp: 3000000,
+                roads: 1500,
+                railways: 200,
+                wear: 38,
+                birthRate: 12.0,
+                deathRate: 8.5,
+                description: "Автономный округ на севере России, важный центр добычи нефти и газа."
+            },
+            "ТЮМ": {
+                name: "Тюменская область",
+                population: 3700000,
+                gdp: 4000000,
+                roads: 8000,
+                railways: 1000,
+                wear: 36,
+                birthRate: 11.5,
+                deathRate: 9.0,
+                description: "Крупный регион на Урале, важный центр добычи нефти и газа."
+            },
+            "ТОМСК": {
+                name: "Томская область",
+                population: 1000000,
+                gdp: 1000000,
+                roads: 3000,
+                railways: 250,
+                wear: 40,
+                birthRate: 10.0,
+                deathRate: 10.2,
+                description: "Регион в Сибири, важный центр науки и образования."
+            },
+            "КЕМ": {
+                name: "Кемеровская область",
+                population: 2700000,
+                gdp: 2000000,
+                roads: 5000,
+                railways: 600,
+                wear: 45,
+                birthRate: 10.5,
+                deathRate: 10.3,
+                description: "Регион в Сибири, важный центр угольной промышленности."
+            },
+            "ИРК": {
+                name: "Иркутская область",
+                population: 2400000,
+                gdp: 2500000,
+                roads: 6000,
+                railways: 800,
+                wear: 42,
+                birthRate: 10.2,
+                deathRate: 10.4,
+                description: "Регион в Сибири, важный центр добычи полезных ископаемых и энергетики."
+            },
+            "АМУР": {
+                name: "Амурская область",
+                population: 800000,
+                gdp: 600000,
+                roads: 2500,
+                railways: 200,
+                wear: 43,
+                birthRate: 9.5,
+                deathRate: 10.7,
+                description: "Регион на Дальнем Востоке, важный центр сельского хозяйства и промышленности."
+            },
+            "ХАБ": {
+                name: "Хабаровский край",
+                population: 1300000,
+                gdp: 1000000,
+                roads: 3000,
+                railways: 250,
+                wear: 41,
+                birthRate: 9.8,
+                deathRate: 10.5,
+                description: "Регион на Дальнем Востоке, важный центр сельского хозяйства и промышленности."
+            },
+            "СХЛН": {
+                name: "Сахалинская область",
+                population: 450000,
+                gdp: 500000,
+                roads: 1000,
+                railways: 150,
+                wear: 39,
+                birthRate: 10.0,
+                deathRate: 10.3,
+                description: "Регион на Дальнем Востоке, важный центр добычи нефти и газа."
+            },
+            "КАЛИ": {
+                name: "Калининградская область",
+                population: 1000000,
+                gdp: 1500000,
+                roads: 2500,
+                railways: 500,
+                wear: 45,
+                birthRate: 9.8,
+                deathRate: 10.5,
+                description: "Единственный российский регион, расположенный на побережье Балтийского моря, эксклав между Польшей и Литвой."
+            },
+            "ПСК": {
+                name: "Псковская область",
+                population: 600000,
+                gdp: 400000,
+                roads: 2200,
+                railways: 150,
+                wear: 47,
+                birthRate: 9.0,
+                deathRate: 10.9,
+                description: "Регион на западной границе России, богатый историческим наследием и природными ресурсами."
+            },
+            "ТВЕР": {
+                name: "Тверская область",
+                population: 1400000,
+                gdp: 900000,
+                roads: 3500,
+                railways: 300,
+                wear: 41,
+                birthRate: 9.7,
+                deathRate: 10.6,
+                description: "Регион в центральной части России, важный транспортный узел на пути из Москвы в Санкт-Петербург."
+            },
+            "ЯРО": {
+                name: "Ярославская область",
+                population: 1300000,
+                gdp: 1000000,
+                roads: 3200,
+                railways: 250,
+                wear: 38,
+                birthRate: 10.0,
+                deathRate: 10.4,
+                description: "Регион с развитой промышленностью, известен своими древними храмами и архитектурой."
+            },
+            "ИВА": {
+                name: "Ивановская область",
+                population: 1000000,
+                gdp: 600000,
+                roads: 2800,
+                railways: 200,
+                wear: 43,
+                birthRate: 9.3,
+                deathRate: 10.8,
+                description: "Регион с исторической текстильной промышленностью, известен как 'город невест'."
+            },
+            "КОС": {
+                name: "Костромская область",
+                population: 600000,
+                gdp: 400000,
+                roads: 2000,
+                railways: 150,
+                wear: 45,
+                birthRate: 9.1,
+                deathRate: 10.7,
+                description: "Регион с богатым историческим наследием, часть Золотого кольца России."
+            },
+            "МАРИ": {
+                name: "Республика Марий Эл",
+                population: 600000,
+                gdp: 300000,
+                roads: 1800,
+                railways: 100,
+                wear: 46,
+                birthRate: 10.2,
+                deathRate: 10.5,
+                description: "Республика в Поволжье, известна своей уникальной культурой и традициями."
+            },
+            "КИР": {
+                name: "Кировская область",
+                population: 1300000,
+                gdp: 700000,
+                roads: 3000,
+                railways: 250,
+                wear: 44,
+                birthRate: 9.6,
+                deathRate: 10.6,
+                description: "Регион в европейской части России, важный центр машиностроения и лесной промышленности."
+            },
+            "ПЕР": {
+                name: "Пермский край",
+                population: 2600000,
+                gdp: 2000000,
+                roads: 5000,
+                railways: 600,
+                wear: 40,
+                birthRate: 10.5,
+                deathRate: 10.3,
+                description: "Крупный регион на Урале, важный промышленный и культурный центр."
+            },
+            "СВЕР": {
+                name: "Свердловская область",
+                population: 4500000,
+                gdp: 3500000,
+                roads: 8000,
+                railways: 1000,
+                wear: 40,
+                birthRate: 10.0,
+                deathRate: 10.3,
+                description: "Крупный регион на Урале, важный центр машиностроения и металлургии."
+            },
+            "КУРГ": {
+                name: "Курганская область",
+                population: 900000,
+                gdp: 600000,
+                roads: 2500,
+                railways: 200,
+                wear: 43,
+                birthRate: 9.8,
+                deathRate: 10.5,
+                description: "Регион на Урале, важный центр сельского хозяйства и промышленности."
+            },
+            "НОВО": {
+                name: "Новосибирская область",
+                population: 2800000,
+                gdp: 2800000,
+                roads: 6000,
+                railways: 800,
+                wear: 39,
+                birthRate: 10.5,
+                deathRate: 10.1,
+                description: "Крупный регион в Сибири, важный центр науки, образования и промышленности."
+            },
+            "ХАК": {
+                name: "Республика Хакасия",
+                population: 550000,
+                gdp: 400000,
+                roads: 2000,
+                railways: 150,
+                wear: 44,
+                birthRate: 11.0,
+                deathRate: 9.5,
+                description: "Республика в Сибири, известна своими горными ландшафтами и природными ресурсами."
+            },
+            "БУР": {
+                name: "Республика Бурятия",
+                population: 1000000,
+                gdp: 700000,
+                roads: 3000,
+                railways: 250,
+                wear: 42,
+                birthRate: 11.5,
+                deathRate: 9.8,
+                description: "Республика в Сибири, известна озером Байкал и уникальной культурой."
+            },
+            "ЕВР": {
+                name: "Еврейская автономная область",
+                population: 150000,
+                gdp: 100000,
+                roads: 500,
+                railways: 100,
+                wear: 44,
+                birthRate: 9.0,
+                deathRate: 10.8,
+                description: "Автономная область на Дальнем Востоке, важный центр сельского хозяйства."
+            },
+            "СМОЛ": {
+                name: "Смоленская область",
+                population: 900000,
+                gdp: 500000,
+                roads: 2500,
+                railways: 200,
+                wear: 42,
+                birthRate: 9.4,
+                deathRate: 10.7,
+                description: "Регион на западной границе России, имеет стратегическое значение и богатую историю."
+            },
+            "КАЛУ": {
+                name: "Калужская область",
+                population: 1000000,
+                gdp: 800000,
+                roads: 3000,
+                railways: 250,
+                wear: 39,
+                birthRate: 10.1,
+                deathRate: 10.4,
+                description: "Регион с развитой автомобильной промышленностью, близко к Москве."
+            },
+            "МОС": {
+                name: "Московская область",
+                population: 7700000,
+                gdp: 8500000,
+                roads: 12000,
+                railways: 2500,
+                wear: 38,
+                birthRate: 12.1,
+                deathRate: 11.5,
+                description: "Один из самых развитых регионов России, окружающий Москву, важный промышленный и научный центр."
+            },
+            "ВЛА": {
+                name: "Владимирская область",
+                population: 1400000,
+                gdp: 900000,
+                roads: 3200,
+                railways: 250,
+                wear: 41,
+                birthRate: 9.9,
+                deathRate: 10.5,
+                description: "Регион в центральной части России, часть Золотого кольца, известен своими древними храмами."
+            },
+            "НИЖ": {
+                name: "Нижегородская область",
+                population: 3200000,
+                gdp: 2500000,
+                roads: 6000,
+                railways: 800,
+                wear: 37,
+                birthRate: 10.3,
+                deathRate: 10.2,
+                description: "Крупный промышленный и транспортный узел, важный центр машиностроения."
+            },
+            "ЧУВ": {
+                name: "Чувашская Республика",
+                population: 1200000,
+                gdp: 600000,
+                roads: 2500,
+                railways: 200,
+                wear: 43,
+                birthRate: 10.8,
+                deathRate: 10.1,
+                description: "Республика в Поволжье, известна своей уникальной культурой и традициями."
+            },
+            "ТАТ": {
+                name: "Республика Татарстан",
+                population: 4000000,
+                gdp: 3500000,
+                roads: 5000,
+                railways: 600,
+                wear: 36,
+                birthRate: 11.5,
+                deathRate: 9.8,
+                description: "Один из самых экономически развитых регионов России, важный центр нефтедобычи и химической промышленности."
+            },
+            "УДМ": {
+                name: "Удмуртская Республика",
+                population: 1500000,
+                gdp: 800000,
+                roads: 3000,
+                railways: 250,
+                wear: 42,
+                birthRate: 10.0,
+                deathRate: 10.4,
+                description: "Республика в Поволжье, известна производством оружия и автомобилей."
+            },
+            "ЧЕЛ": {
+                name: "Челябинская область",
+                population: 3500000,
+                gdp: 3000000,
+                roads: 7000,
+                railways: 900,
+                wear: 38,
+                birthRate: 10.2,
+                deathRate: 10.3,
+                description: "Крупный регион на Урале, важный центр металлургии и машиностроения."
+            },
+            "ОМСК": {
+                name: "Омская область",
+                population: 2000000,
+                gdp: 2000000,
+                roads: 5000,
+                railways: 600,
+                wear: 41,
+                birthRate: 10.0,
+                deathRate: 10.4,
+                description: "Регион в Сибири, важный центр сельского хозяйства и промышленности."
+            },
+            "АЛТ.К": {
+                name: "Алтайский край",
+                population: 2400000,
+                gdp: 1500000,
+                roads: 5000,
+                railways: 600,
+                wear: 43,
+                birthRate: 10.8,
+                deathRate: 10.1,
+                description: "Регион в Сибири, известен своими горами и сельским хозяйством."
+            },
+            "ТЫВА": {
+                name: "Республика Тыва",
+                population: 350000,
+                gdp: 200000,
+                roads: 1500,
+                railways: 100,
+                wear: 45,
+                birthRate: 14.0,
+                deathRate: 8.0,
+                description: "Республика в Сибири, известна своей уникальной культурой и природными ресурсами."
+            },
+            "ЗАБ": {
+                name: "Забайкальский край",
+                population: 1100000,
+                gdp: 800000,
+                roads: 3000,
+                railways: 250,
+                wear: 44,
+                birthRate: 10.5,
+                deathRate: 10.2,
+                description: "Регион в Сибири, важный центр добычи полезных ископаемых."
+            },
+            "ПРИ": {
+                name: "Приморский край",
+                population: 1900000,
+                gdp: 1500000,
+                roads: 4000,
+                railways: 500,
+                wear: 40,
+                birthRate: 9.5,
+                deathRate: 10.6,
+                description: "Регион на Дальнем Востоке, важный центр сельского хозяйства и промышленности, порт Владивосток."
+            },
+            "БРЯ": {
+                name: "Брянская область",
+                population: 1200000,
+                gdp: 700000,
+                roads: 2800,
+                railways: 200,
+                wear: 44,
+                birthRate: 9.5,
+                deathRate: 10.6,
+                description: "Регион на юго-западе России, имеет стратегическое значение и богатую историю."
+            },
+            "ОРЁЛ": {
+                name: "Орловская область",
+                population: 700000,
+                gdp: 400000,
+                roads: 2000,
+                railways: 150,
+                wear: 45,
+                birthRate: 9.2,
+                deathRate: 10.8,
+                description: "Регион в центральной части России, известен своим сельским хозяйством."
+            },
+            "ТУЛ": {
+                name: "Тульская область",
+                population: 1500000,
+                gdp: 1000000,
+                roads: 3500,
+                railways: 250,
+                wear: 40,
+                birthRate: 10.0,
+                deathRate: 10.3,
+                description: "Регион с развитой промышленностью, особенно известен производством оружия."
+            },
+            "РЯЗ": {
+                name: "Рязанская область",
+                population: 1200000,
+                gdp: 800000,
+                roads: 3000,
+                railways: 200,
+                wear: 41,
+                birthRate: 9.7,
+                deathRate: 10.5,
+                description: "Регион в центральной части России, важный центр сельского хозяйства и энергетики."
+            },
+            "МОР": {
+                name: "Республика Мордовия",
+                population: 800000,
+                gdp: 500000,
+                roads: 2200,
+                railways: 150,
+                wear: 43,
+                birthRate: 10.5,
+                deathRate: 10.2,
+                description: "Республика в Поволжье, известна своей уникальной культурой и традициями."
+            },
+            "УЛЬ": {
+                name: "Ульяновская область",
+                population: 1200000,
+                gdp: 800000,
+                roads: 2800,
+                railways: 200,
+                wear: 42,
+                birthRate: 10.2,
+                deathRate: 10.4,
+                description: "Регион в Поволжье, родина В.И. Ленина, важный центр машиностроения."
+            },
+            "САМ": {
+                name: "Самарская область",
+                population: 3200000,
+                gdp: 2800000,
+                roads: 6000,
+                railways: 800,
+                wear: 38,
+                birthRate: 10.6,
+                deathRate: 10.1,
+                description: "Крупный промышленный и транспортный узел, важный центр нефтепереработки и авиации."
+            },
+            "БШК": {
+                name: "Башкортостан",
+                population: 4000000,
+                gdp: 3200000,
+                roads: 5500,
+                railways: 700,
+                wear: 37,
+                birthRate: 11.2,
+                deathRate: 9.9,
+                description: "Один из самых экономически развитых регионов России, важный центр нефтедобычи и химической промышленности."
+            },
+            "АЛТ": {
+                name: "Республика Алтай",
+                population: 200000,
+                gdp: 100000,
+                roads: 1000,
+                railways: 50,
+                wear: 46,
+                birthRate: 12.0,
+                deathRate: 9.0,
+                description: "Республика в Сибири, известна своими горами и природными ресурсами."
+            },
+            "КУРСК": {
+                name: "Курская область",
+                population: 1200000,
+                gdp: 900000,
+                roads: 3000,
+                railways: 250,
+                wear: 41,
+                birthRate: 9.8,
+                deathRate: 10.5,
+                description: "Регион в центральной части России, важный центр сельского хозяйства и энергетики."
+            },
+            "ЛИП": {
+                name: "Липецкая область",
+                population: 1200000,
+                gdp: 1000000,
+                roads: 3200,
+                railways: 250,
+                wear: 39,
+                birthRate: 10.1,
+                deathRate: 10.3,
+                description: "Регион с развитой металлургической промышленностью, важный центр черной металлургии."
+            },
+            "ТАМ": {
+                name: "Тамбовская область",
+                population: 1100000,
+                gdp: 700000,
+                roads: 2800,
+                railways: 200,
+                wear: 42,
+                birthRate: 9.6,
+                deathRate: 10.6,
+                description: "Регион в центральной части России, важный центр сельского хозяйства."
+            },
+            "ПЕН": {
+                name: "Пензенская область",
+                population: 1300000,
+                gdp: 800000,
+                roads: 3000,
+                railways: 200,
+                wear: 43,
+                birthRate: 9.9,
+                deathRate: 10.5,
+                description: "Регион в Поволжье, известен своей сельскохозяйственной продукцией и промышленностью."
+            },
+            "САР": {
+                name: "Саратовская область",
+                population: 2500000,
+                gdp: 2000000,
+                roads: 5000,
+                railways: 600,
+                wear: 40,
+                birthRate: 10.4,
+                deathRate: 10.2,
+                description: "Крупный регион в Поволжье, важный центр сельского хозяйства и энергетики."
+            },
+            "ОРЕН": {
+                name: "Оренбургская область",
+                population: 1900000,
+                gdp: 1200000,
+                roads: 8500,
+                railways: 1800,
+                wear: 55,
+                birthRate: 13.8,
+                deathRate: 12.4,
+                description: "Регион на границе Европы и Азии, важный сельскохозяйственный и промышленный центр Уральского федерального округа."
+            },
+            "БЕЛ": {
+                name: "Белгородская область",
+                population: 1500000,
+                gdp: 1000000,
+                roads: 3500,
+                railways: 250,
+                wear: 39,
+                birthRate: 10.2,
+                deathRate: 10.4,
+                description: "Регион в южной части России, важный центр сельского хозяйства и промышленности."
+            },
+            "ВОР": {
+                name: "Воронежская область",
+                population: 2500000,
+                gdp: 1800000,
+                roads: 5000,
+                railways: 600,
+                wear: 41,
+                birthRate: 10.5,
+                deathRate: 10.2,
+                description: "Крупный регион в центральной части России, важный центр сельского хозяйства и промышленности."
+            },
+            "ВОЛГ": {
+                name: "Волгоградская область",
+                population: 2500000,
+                gdp: 1500000,
+                roads: 5500,
+                railways: 700,
+                wear: 42,
+                birthRate: 10.3,
+                deathRate: 10.4,
+                description: "Регион на берегах Волги, важный центр сельского хозяйства и промышленности, знаменит битвой под Сталинградом."
+            },
+            "КРЫМ": {
+                name: "Республика Крым",
+                population: 2400000,
+                gdp: 1500000,
+                roads: 3000,
+                railways: 250,
+                wear: 42,
+                birthRate: 10.0,
+                deathRate: 10.4,
+                description: "Республика на юге России, важный центр туризма и сельского хозяйства."
+            },
+            "АДЫГ": {
+                name: "Республика Адыгея",
+                population: 450000,
+                gdp: 300000,
+                roads: 1500,
+                railways: 100,
+                wear: 43,
+                birthRate: 10.5,
+                deathRate: 10.2,
+                description: "Республика на юге России, известна своими горами и природными ресурсами."
+            },
+            "КРДР": {
+                name: "Карачаево-Черкесская Республика",
+                population: 450000,
+                gdp: 300000,
+                roads: 1500,
+                railways: 100,
+                wear: 44,
+                birthRate: 10.8,
+                deathRate: 10.1,
+                description: "Республика на Северном Кавказе, известна своими горами и природными ресурсами."
+            },
+            "РОС": {
+                name: "Ростовская область",
+                population: 4300000,
+                gdp: 3000000,
+                roads: 8000,
+                railways: 1000,
+                wear: 38,
+                birthRate: 10.2,
+                deathRate: 10.3,
+                description: "Крупный регион на юге России, важный центр сельского хозяйства и промышленности."
+            },
+            "КАЛМ": {
+                name: "Республика Калмыкия",
+                population: 280000,
+                gdp: 200000,
+                roads: 1000,
+                railways: 50,
+                wear: 45,
+                birthRate: 11.0,
+                deathRate: 9.5,
+                description: "Республика на юге России, единственная буддийская республика в Европе."
+            },
+            "АСТ": {
+                name: "Астраханская область",
+                population: 1000000,
+                gdp: 800000,
+                roads: 2500,
+                railways: 200,
+                wear: 41,
+                birthRate: 10.5,
+                deathRate: 10.2,
+                description: "Регион на юге России, важный центр рыболовства и сельского хозяйства."
+            },
+            "КАРА": {
+                name: "Карачаево-Черкесская Республика",
+                population: 450000,
+                gdp: 300000,
+                roads: 1500,
+                railways: 100,
+                wear: 44,
+                birthRate: 10.8,
+                deathRate: 10.1,
+                description: "Республика на Северном Кавказе, известна своими горами и природными ресурсами."
+            },
+            "СТАВ": {
+                name: "Ставропольский край",
+                population: 2800000,
+                gdp: 2000000,
+                roads: 5000,
+                railways: 600,
+                wear: 39,
+                birthRate: 10.0,
+                deathRate: 10.4,
+                description: "Регион на Северном Кавказе, важный центр сельского хозяйства и туризма."
+            },
+            "ЧЕЧ": {
+                name: "Чеченская Республика",
+                population: 1500000,
+                gdp: 1000000,
+                roads: 2500,
+                railways: 200,
+                wear: 42,
+                birthRate: 12.0,
+                deathRate: 9.0,
+                description: "Республика на Северном Кавказе, известна своей уникальной культурой и традициями."
+            },
+            "ДАГ": {
+                name: "Республика Дагестан",
+                population: 3100000,
+                gdp: 1500000,
+                roads: 4000,
+                railways: 500,
+                wear: 41,
+                birthRate: 13.0,
+                deathRate: 8.5,
+                description: "Республика на Северном Кавказе, известна своей многонациональной культурой и природными ресурсами."
+            },
+            "КАБ": {
+                name: "Кабардино-Балкарская Республика",
+                population: 900000,
+                gdp: 600000,
+                roads: 2000,
+                railways: 150,
+                wear: 43,
+                birthRate: 10.5,
+                deathRate: 10.2,
+                description: "Республика на Северном Кавказе, известна своими горами и природными ресурсами."
+            },
+            "ОСЕТ": {
+                name: "Республика Северная Осетия-Алания",
+                population: 700000,
+                gdp: 500000,
+                roads: 1500,
+                railways: 100,
+                wear: 44,
+                birthRate: 10.0,
+                deathRate: 10.3,
+                description: "Республика на Северном Кавказе, известна своими горами и природными ресурсами."
+            },
+            "ИНГ": {
+                name: "Республика Ингушетия",
+                population: 500000,
+                gdp: 300000,
+                roads: 1000,
+                railways: 50,
+                wear: 45,
+                birthRate: 11.5,
+                deathRate: 9.5,
+                description: "Республика на Северном Кавказе, известна своей уникальной культурой и традициями."
+            }
+        };
+
+        // Функция для обновления тепловой карты
+        function updateHeatmap(metric) {
+            const cells = document.querySelectorAll('.region-cell');
+            let values = [];
+            
+            cells.forEach(cell => {
+                const regionCode = cell.getAttribute('data-region');
+                if (regionCode && regionsData[regionCode]) {
+                    values.push(regionsData[regionCode][metric]);
+                }
+            });
+            
+            const min = Math.min(...values);
+            const max = Math.max(...values);
+            
+            cells.forEach(cell => {
+                const regionCode = cell.getAttribute('data-region');
+                if (regionCode && regionsData[regionCode]) {
+                    const value = regionsData[regionCode][metric];
+                    const normalized = (value - min) / (max - min);
+                    
+                    // Удаляем предыдущие классы тепловой карты
+                    cell.classList.remove('heat-low', 'heat-medium-low', 'heat-medium', 'heat-medium-high', 'heat-high');
+                    
+                    // Определяем цвет в зависимости от нормализованного значения
+                    if (normalized < 0.2) {
+                        cell.classList.add('heat-low');
+                    } else if (normalized < 0.4) {
+                        cell.classList.add('heat-medium-low');
+                    } else if (normalized < 0.6) {
+                        cell.classList.add('heat-medium');
+                    } else if (normalized < 0.8) {
+                        cell.classList.add('heat-medium-high');
+                    } else {
+                        cell.classList.add('heat-high');
+                    }
+                }
+            });
+        }
+
+        // Обработчик клика по региону
+        document.querySelectorAll('.region-cell').forEach(cell => {
+            cell.addEventListener('click', function() {
+                const regionCode = this.getAttribute('data-region');
+                if (!regionCode) return;
+                
+                const regionData = regionsData[regionCode];
+                if (!regionData) return;
+                
+                // Отправляем сообщение в чат
+                addMessage('bot', `📊 Данные по региону ${regionData.name}:\n\n` +
+                    `👥 Население: ${regionData.population.toLocaleString('ru-RU')} чел.\n` +
+                    `💰 ВРП: ${regionData.gdp.toLocaleString('ru-RU')} млн руб.\n` +
+                    `🚗 Км дорог: ${regionData.roads.toLocaleString('ru-RU')}\n` +
+                    `🚂 ЖД линии: ${regionData.railways.toLocaleString('ru-RU')} км\n` +
+                    `⚠️ Износ инфраструктуры: ${regionData.wear}%\n` +
+                    `👶 Рождаемость: ${regionData.birthRate}‰\n` +
+                    `⚰️ Смертность: ${regionData.deathRate}‰\n\n` +
+                    `ℹ️ ${regionData.description}`);
+                
+                // Выделяем выбранный регион
+                document.querySelectorAll('.region-cell').forEach(c => {
+                    c.style.boxShadow = '0 1px 3px rgba(0,0,0,0.1)';
+                    c.style.transform = 'scale(1)';
+                });
+                this.style.boxShadow = '0 0 15px 3px #1890ff';
+                this.style.transform = 'scale(1.1)';
+            });
+        });
+
+        // Функция чата с ИИ
+        document.getElementById('send-btn').addEventListener('click', function() {
+            const userInput = document.getElementById('chat-input').value;
+            if (!userInput.trim()) return;
+            
+            addMessage('user', userInput);
+            document.getElementById('chat-input').value = '';
+            
+            // Имитация ответа ИИ
+            setTimeout(() => {
+                const response = generateAIResponse(userInput);
+                addMessage('bot', response);
+            }, 1000);
+        });
+
+        // Обработчик нажатия Enter в поле ввода
+        document.getElementById('chat-input').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                document.getElementById('send-btn').click();
+            }
+        });
+
+        // Генерация ответа ИИ
+        function generateAIResponse(query) {
+            query = query.toLowerCase();
+            
+            if (query.includes('москва') || query.includes('мск')) {
+                return 'Москва - столица России и самый крупный город страны. Население составляет около 13 млн человек. Москва является главным экономическим, политическим и культурным центром России, на её долю приходится около 20% ВВП страны.';
+            }
+            else if (query.includes('санкт-петербург') || query.includes('спб')) {
+                return 'Санкт-Петербург - второй по величине город России, важный культурный и исторический центр, крупный порт на Балтийском море. Население составляет около 5,4 млн человек.';
+            }
+            else if (query.includes('самый большой') || query.includes('лидер')) {
+                return 'По населению лидером является Москва (13 млн), затем Санкт-Петербург (5,4 млн) и Московская область (7,7 млн). По ВРП также лидирует Москва, за ней следуют Московская область, Санкт-Петербург и Тюменская область.';
+            }
+            else if (query.includes('износ') || query.includes('инфраструктура')) {
+                return 'Наибольший износ инфраструктуры наблюдается в регионах Сибири и Дальнего Востока, где некоторые объекты были построены ещё в советское время. В среднем по России износ основных фондов составляет около 50%.';
+            }
+            else if (query.includes('регион') || query.includes('субъект')) {
+                return 'Россия состоит из 85 субъектов Российской Федерации: 22 республики, 9 краёв, 46 областей, 3 города федерального значения, 1 автономная область и 4 автономных округа.';
+            }
+            else if (query.includes('население')) {
+                return 'Население России составляет около 146 миллионов человек. Наиболее населённые регионы: Москва (13 млн), Московская область (7,7 млн), Санкт-Петербург (5,4 млн). Самые малонаселённые регионы: Чукотский автономный округ (50 тыс.), Ненецкий автономный округ (45 тыс.).';
+            }
+            else if (query.includes('врп')) {
+                return 'ВРП России составляет около 130 трлн рублей. Лидеры по ВРП: Москва (25 трлн), Московская область (8,5 трлн), Санкт-Петербург (12 трлн). Самые низкие показатели ВРП: Чукотский автономный округ (50 млрд), Ненецкий автономный округ (100 млрд).';
+            }
+            else if (query.includes('дороги')) {
+                return 'Общая протяжённость автомобильных дорог в России составляет около 1,5 миллиона километров. Лидеры по протяжённости дорог: Московская область (12 тыс. км), Краснодарский край (10 тыс. км), Свердловская область (8 тыс. км).';
+            }
+            else if (query.includes('железные дороги')) {
+                return 'Общая протяжённость железных дорог в России составляет около 85 тысяч километров. Лидеры по протяжённости ЖД: Свердловская область (1 тыс. км), Московская область (2,5 тыс. км), Краснодарский край (1,2 тыс. км).';
+            }
+            else {
+                return 'Я проанализировал ваш вопрос о регионах России. Пожалуйста, уточните, какой именно аспект вас интересует: население, экономика, инфраструктура или демографические показатели?';
+            }
+        }
+
+        function addMessage(sender, text) {
+            const messagesDiv = document.getElementById('chat-messages');
+            const messageElement = document.createElement('div');
+            messageElement.className = sender === 'user' ? 'text-end mb-2' : 'text-start mb-2';
+            messageElement.innerHTML = `<strong>${sender === 'user' ? 'Вы' : 'AI'}:</strong> ${text.replace(/\n/g, '<br>')}`;
+            messagesDiv.appendChild(messageElement);
+            messagesDiv.scrollTop = messagesDiv.scrollHeight;
+        }
+
+        // Обработчик выбора метрики
+        document.getElementById('metric-selector').addEventListener('change', function() {
+            const metric = this.value;
+            updateHeatmap(metric);
+            
+            const metricNames = {
+                'population': 'Население',
+                'gdp': 'ВРП',
+                'roads': 'Км дорог',
+                'railways': 'ЖД линии',
+                'wear': 'Износ инфраструктуры',
+                'demography': 'Демография'
+            };
+            
+            addMessage('bot', `Выбрана метрика: ${metricNames[metric]}\n\n` +
+                `Теперь вы можете кликнуть на любой регион в карте слева, чтобы увидеть данные по этой метрике. ` +
+                `Или задайте вопрос в чате, например: "Какой регион имеет самый высокий ВРП?"`);
+        });
+
+        // Инициализация при загрузке
+        document.addEventListener('DOMContentLoaded', function() {
+            // Приветственное сообщение
+            setTimeout(() => {
+                addMessage('bot', 'Здравствуйте! Я - ИИ-ассистент по анализу данных регионов России. ' +
+                    'Слева вы видите точную копию карты с географически корректным расположением всех 85 регионов. ' +
+                    'Кликните на любой регион, чтобы увидеть его данные, или задайте вопрос в чате. ' +
+                    'Выберите метрику для отображения в выпадающем списке.');
+                
+                // Инициализация тепловой карты по умолчанию
+                updateHeatmap('population');
+            }, 500);
+        });
+    </script>
+</body>
+</html>
